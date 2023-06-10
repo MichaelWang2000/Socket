@@ -1,0 +1,89 @@
+#include <netinet/in.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <ctype.h>
+#include <stdlib.h>
+ 
+#define HELLO_WORLD_SERVER_PORT       6666  
+#define BUFFER_SIZE                   1024  
+#define FILE_NAME_MAX_SIZE            512  
+#define BUF_SIZE 10240  
+ 
+#define SERVER_PORT 8000
+#define MAXLINE 4096
+ 
+int main(void)
+{
+	struct sockaddr_in serveraddr;
+	int confd,len;
+	char ipstr[] = "192.168.1.100";//这是服务器的地址，使用ifconfig来查看
+	char buf[MAXLINE];
+	//1.创建一个socket
+	confd = socket(AF_INET,SOCK_STREAM,0);
+	//2.初始化服务器地址，指明我要连接哪个服务器
+	bzero(&serveraddr,sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	inet_pton(AF_INET,ipstr,&serveraddr.sin_addr.s_addr);
+	serveraddr.sin_port = htons(SERVER_PORT);
+	//3.链接服务器
+	connect(confd,(struct sockaddr *)&serveraddr,sizeof(serveraddr));
+	
+
+    int flag=1,size;
+    char t[20];
+    memset(&t,0,sizeof(t));
+    while(flag){
+         char fdownload[100] = {0};
+         printf("Input filename to download: ");
+         gets(fdownload);
+         if(!strcmp(fdownload,"quit")) break;
+         send(confd,fdownload,100,0);
+         char filename[100] = {0}; //文件名
+         len=recv(confd,t,20,0);
+         size=atoi(t);
+         double sizel;
+         sizel=size/1048576.0;
+         printf("filesize; %.2f MB\n ",sizel);
+         printf("Input filename to save: ");
+         gets(filename);
+         if(!strcmp(filename,"quit")) break;
+         else{
+                FILE *fp = fopen(filename, "wb"); //以二进制方式打开（创建）文件
+                if(fp == NULL){
+                    printf("Cannot open file, press any key to exit!\n");
+                    break;
+                }
+                send(confd,"o",4,0);
+                char buffer[BUF_SIZE] = {0}; //文件缓冲区
+                long nCount,mc=0;
+                long si,sj,m,c;
+                printf("Start receive!\n");
+            
+                while( (nCount = recv(confd, buffer, BUF_SIZE, 0)) > 0 ){
+	                    mc=mc+nCount;
+			            si=mc*30/size;
+			            m=si-sj;
+				 
+		                printf("%*s|%d%%",30-si,"",(mc*100/size));
+			              printf("\r\033["); //退格
+                        for(int t=0;t<si+1;t++)
+				                {
+					                 printf(">");
+					                 setbuf(stdout, NULL);
+				                }
+                        fwrite(buffer, nCount, 1, fp);
+                        if(mc==size) break;
+                }
+            printf("Transfer success!\n");
+            fclose(fp);
+        }
+    }
+close(confd);
+return 0;
+}
+
